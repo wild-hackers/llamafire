@@ -1,0 +1,16 @@
+# Core dependencies
+opencv-python
+ultralytics
+requests
+python-dotenv
+numpy
+Pillow
+
+# Async support
+asyncio
+
+# Logging and utilities
+colorama
+
+# Error handling
+backoff
