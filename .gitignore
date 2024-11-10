@@ -85,7 +85,6 @@ htmlcov/
 runs/
 *.pt
 *.mp4
-*.jpg
 .env
 
 # IDE

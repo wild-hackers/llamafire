@@ -1,7 +1,7 @@
-path: /Users/vlad/Dropbox/CODE/projects/hackathon/llama3-hackathon/data/binary_fire_dataset
-train: /Users/vlad/Dropbox/CODE/projects/hackathon/llama3-hackathon/data/binary_fire_dataset/images/train
-val: /Users/vlad/Dropbox/CODE/projects/hackathon/llama3-hackathon/data/binary_fire_dataset/images/val
-test: /Users/vlad/Dropbox/CODE/projects/hackathon/llama3-hackathon/data/binary_fire_dataset/images/test
 names:
 - fire
 nc: 1
+path: /Users/vlad/Dropbox/CODE/projects/hackathon/llama3-hackathon/data/binary_fire_dataset
+test: images/test
+train: images/train
+val: images/val
