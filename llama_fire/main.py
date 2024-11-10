@@ -5,6 +5,8 @@ from pathlib import Path
 import json
 from datetime import datetime
 import logging
+import cv2
+import time
 
 # Configure logging to be more focused
 logging.basicConfig(
@@ -21,16 +23,22 @@ logger = logging.getLogger('FireMonitor')
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.append(str(ROOT_DIR))
 
-from src.mock.dji_mock import LlamaFireControlMock
-from src.detection.fire_detector import FireDetector
-from src.analysis.llama_analyzer import LlamaAnalyzer
-import cv2
-import time
+# Fixed imports to use llama_fire instead of src
+from llama_fire.mock.dji_mock import LlamaFireControlMock
+from llama_fire.detection.fire_detector import FireDetector
+from llama_fire.analysis.llama_analyzer import LlamaAnalyzer
 
 class FireMonitoringSystem:
     def __init__(self, model_path=None):
+        if model_path is None:
+            # Use the binary model by default
+            model_path = ROOT_DIR / 'models' / 'custom' / 'fire_detection_binary.pt'
+            if not model_path.exists():
+                raise FileNotFoundError(f"Model not found at {model_path}")
+            logger.info(f"Using binary fire detection model: {model_path}")
+        
         self.mock_dji = LlamaFireControlMock()
-        self.detector = FireDetector(model_path=model_path)
+        self.detector = FireDetector(model_path=str(model_path))
         self.analyzer = LlamaAnalyzer()
         self.last_analysis_time = 0
         self.analysis_cooldown = 60

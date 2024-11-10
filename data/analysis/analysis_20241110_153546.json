@@ -1,0 +1,13 @@
+{
+    "timestamp": "20241110_153546",
+    "image_path": "data/detected_fires/fire_20241110_153546.jpg",
+    "analysis": "The image depicts a room with a chair, lamp, and window. The room is painted orange, with a window on the right side that has a white blind pulled down halfway. A black door is visible to the right of the window, and a lamp with a white shade sits on a table or desk in front of it. A black chair is positioned in the center of the room, facing the window.\n\nUpon analyzing the image, there are no visible signs of fire, smoke, or flames. The room appears to be well-lit, with natural light coming through the window. The overall atmosphere suggests a peaceful and serene environment.\n\nTherefore, the response to the image is:\n\n{\n    \"fire_detected\": false,\n    \"analysis\": {\n        \"severity\": \"none\",\n        \"spread_direction\": null,\n        \"risks\": null,\n        \"recommended_actions\": null,\n        \"emergency_services_required\": false\n    },\n    \"confidence\": 1.0\n}",
+    "telemetry": {
+        "altitude": 0.0,
+        "gps": {
+            "lat": 37.7749,
+            "lon": -122.4194
+        },
+        "battery": 100
+    }
+}

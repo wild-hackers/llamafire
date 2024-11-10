@@ -18,20 +18,22 @@ class FireDetector:
         
         self.logger.info(f"Using device: {self.device}")
         
-        if model_path and Path(model_path).exists():
+        if model_path:
             self.model = YOLO(model_path)
         else:
-            # Check for trained model in custom directory
-            custom_model = self.root_dir / 'models' / 'custom' / 'fire_detection.pt'
-            if custom_model.exists():
-                self.logger.info(f"Loading custom model: {custom_model}")
-                self.model = YOLO(custom_model)
+            # Check for binary fire detection model first
+            binary_model = self.root_dir / 'models' / 'custom' / 'fire_detection_binary.pt'
+            if binary_model.exists():
+                self.logger.info(f"Loading binary fire detection model: {binary_model}")
+                self.model = YOLO(str(binary_model))
             else:
-                # Train new model if none exists
-                self.logger.info("No custom model found. Training new model...")
-                base_model = self.root_dir / 'models' / 'pretrained' / 'yolov8n.pt'
-                self.model = YOLO(base_model)
-                self.train_model()
+                # Fallback to regular fire detection model
+                custom_model = self.root_dir / 'models' / 'custom' / 'fire_detection.pt'
+                if custom_model.exists():
+                    self.logger.info(f"Loading custom model: {custom_model}")
+                    self.model = YOLO(custom_model)
+                else:
+                    raise FileNotFoundError("No fire detection model found!")
         
         # Move model to appropriate device
         self.model.to(self.device)

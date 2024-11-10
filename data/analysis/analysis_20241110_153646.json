@@ -1,0 +1,13 @@
+{
+    "timestamp": "20241110_153646",
+    "image_path": "data/detected_fires/fire_20241110_153646.jpg",
+    "analysis": "The image depicts a room with a window, a chair, and a lamp. The room is painted orange, and there are two framed pictures on the wall. The overall atmosphere of the room appears to be calm and peaceful.\n\nTo determine if a fire is present in the image, we will analyze the scene for any signs of combustion or potential fire hazards.\n\n**Fire Detection Analysis**\n\nUpon examining the image, we do not observe any visible flames, smoke, or other indicators of a fire. There are no obvious fire hazards, such as unattended candles or electrical appliances, in the room. The room appears to be well-maintained, with no signs of damage or neglect.\n\n**Conclusion**\n\nBased on our analysis, we conclude that there is no fire present in the image. The room appears to be safe, and there are no indications of a fire hazard.\n\n**Response**\n\n{\n    \"fire_detected\": false,\n    \"analysis\": {\n        \"severity\": \"none\",\n        \"spread_direction\": null,\n        \"risks\": null,\n        \"recommended_actions\": null,\n        \"emergency_services_required\": false\n    },\n    \"confidence\": 1.0\n}",
+    "telemetry": {
+        "altitude": 0.0,
+        "gps": {
+            "lat": 37.7749,
+            "lon": -122.4194
+        },
+        "battery": 100
+    }
+}

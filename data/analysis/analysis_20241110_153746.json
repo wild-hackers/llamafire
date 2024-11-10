@@ -1,0 +1,13 @@
+{
+    "timestamp": "20241110_153746",
+    "image_path": "data/detected_fires/fire_20241110_153746.jpg",
+    "analysis": "The image depicts a man sitting in front of an orange wall, with a window above him and a lamp to his right. The man is wearing glasses and a dark-colored shirt with a pattern of lines and shapes.\n\nUpon examining the image, there is no visible evidence of fire. The man appears to be in a room with a window, which suggests that it is an indoor setting. The lamp on the right side of the image is not emitting any flames or smoke, and the orange walls do not indicate any signs of combustion.\n\nTherefore, based on the visual inspection, I conclude that there is no fire present in the image. The confidence level for this assessment is 1.0, indicating absolute certainty.\n\n**Response:**\n{\n    \"fire_detected\": false,\n    \"analysis\": {\n        \"severity\": \"none\",\n        \"spread_direction\": null,\n        \"risks\": null,\n        \"recommended_actions\": null,\n        \"emergency_services_required\": false\n    },\n    \"confidence\": 1.0\n}",
+    "telemetry": {
+        "altitude": 0.0,
+        "gps": {
+            "lat": 37.7749,
+            "lon": -122.4194
+        },
+        "battery": 100
+    }
+}
