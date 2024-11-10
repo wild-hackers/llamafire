@@ -15,6 +15,7 @@ from typing import Optional
 import re
 import cv2
 import numpy as np
+from together import Together  # Add this import at the top
 
 # Set the correct base directory (relative to project root)
 BASE_DIR = Path(__file__).parent.parent  # This gets us to the project root
@@ -84,6 +85,9 @@ class LlamaLabeler:
         if not self.api_key:
             raise ValueError("ERROR: TOGETHER_API_KEY not found in .env file")
             
+        # Initialize Together client
+        self.client = Together()
+        
         # Initialize paths
         self.dataset_root = Path(self.config['dataset_root'])
         self.images_dir = self.dataset_root / 'images'
@@ -168,49 +172,126 @@ class LlamaLabeler:
         }
         return metadata, img
 
-    def get_fire_location(self, image_path):
-        """Get binary fire detection"""
-        encoded_image = self.encode_image(image_path)
-        if not encoded_image:
-            return None
-
-        prompt = """Analyze this image for fire detection. Your task is simple:
-1. Determine if there is ANY type of fire in the image
-2. If fire is present, provide its bounding box location
-
-Return ONLY a JSON object in this format:
-{
-    "has_fire": true/false,
-    "bbox": {
-        "x": <center_x>,  // normalized 0-1
-        "y": <center_y>,  // normalized 0-1
-        "w": <width>,     // normalized 0-1
-        "h": <height>     // normalized 0-1
-    }
-}
-
-If no fire is detected, return:
-{
-    "has_fire": false,
-    "bbox": null
-}"""
-
+    def get_fire_location(self, response_data: dict) -> dict:
+        """Extract fire location from API response"""
         try:
-            response = self.call_api(encoded_image, prompt)
-            if not response:
-                return None
+            # Get the response text from the API response
+            if isinstance(response_data, dict):
+                # Extract from nested structure
+                if 'output' in response_data and 'text' in response_data['output']:
+                    response_text = response_data['output']['text']
+                else:
+                    response_text = str(response_data)
+            else:
+                response_text = str(response_data)
+
+            self.logger.debug(f"Processing response text: {response_text}")
+
+            # Try to parse the response text as JSON
+            try:
+                data = json.loads(response_text)
                 
-            # Parse and validate response
-            fire_data = self.parse_llm_response(response)
-            if fire_data and fire_data.get('has_fire') and not fire_data.get('bbox'):
-                self.logger.error("Fire detected but no bbox provided")
-                return None
+                # Check if we have a valid fire detection response
+                if isinstance(data, dict) and 'has_fire' in data:
+                    if data['has_fire'] and 'bbox' in data:
+                        # Validate bbox format
+                        bbox = data['bbox']
+                        if all(k in bbox for k in ['x', 'y', 'w', 'h']):
+                            return {
+                                'has_fire': True,
+                                'bbox': bbox
+                            }
+                    return {'has_fire': False}
                 
-            return fire_data
-            
+                self.logger.error(f"Invalid response format: {data}")
+                return {'has_fire': False}
+                
+            except json.JSONDecodeError as e:
+                self.logger.error(f"Failed to parse JSON: {e}\nResponse: {response_text}")
+                return {'has_fire': False}
+
         except Exception as e:
-            self.logger.error(f"Failed to get fire location: {str(e)}")
-            return None
+            self.logger.error(f"Error in get_fire_location: {str(e)}")
+            return {'has_fire': False}
+
+    def get_llama_response(self, image_path: Path) -> dict:
+        """Get response from Llama API for image analysis"""
+        try:
+            # Read and encode image
+            with open(image_path, "rb") as img_file:
+                base64_image = base64.b64encode(img_file.read()).decode('utf-8')
+
+            prompt = """You are a binary fire detection system. Look at this image and:
+            1. Determine if there is any visible fire
+            2. If fire is present, locate its exact position
+            
+            Return ONLY a JSON object in one of these formats:
+            
+            If fire is present:
+            {
+                "has_fire": true,
+                "bbox": {
+                    "x": <center_x>,  // normalized center x (0.1-0.9)
+                    "y": <center_y>,  // normalized center y (0.1-0.9)
+                    "w": <width>,     // normalized width (0.1-0.9)
+                    "h": <height>     // normalized height (0.1-0.9)
+                }
+            }
+            
+            If NO fire is present:
+            {
+                "has_fire": false
+            }
+            
+            Important:
+            - Return ONLY the JSON object, no other text
+            - Coordinates must be between 0.1 and 0.9
+            - The box should tightly bound only the visible flames"""
+
+            # Create API request using Together client
+            response = self.client.chat.completions.create(
+                model="meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a binary fire detection system. Respond only with JSON."
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                stream=False,
+                temperature=0.1,
+                max_tokens=100
+            )
+
+            # Extract the response content
+            if hasattr(response.choices[0].message, 'content'):
+                content = response.choices[0].message.content.strip()
+                self.logger.debug(f"Raw response content: {content}")
+                
+                try:
+                    json_response = json.loads(content)
+                    return {"output": {"text": json.dumps(json_response)}}
+                except json.JSONDecodeError:
+                    self.logger.error(f"Failed to parse JSON response: {content}")
+                    return {"output": {"text": '{"has_fire": false}'}}
+            else:
+                self.logger.error("Response has no content attribute")
+                return {"output": {"text": '{"has_fire": false}'}}
+
+        except Exception as e:
+            self.logger.error(f"API request failed: {str(e)}")
+            raise
 
     def parse_llm_response(self, response: str) -> dict:
         """Extract JSON from LLM response, handling various formats"""
@@ -303,22 +384,18 @@ If no fire is detected, return:
         x1, y1 = max(0, x1), max(0, y1)
         x2, y2 = min(w, x2), min(h, y2)
         
-        # Draw rectangle
-        cv2.rectangle(img, (x1, y1), (x2, y2), VISUALIZATION_COLOR, 2)
+        # Draw rectangle in green
+        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
         
-        # Add label with fire type
-        label = f"{label_data['fire_type']}"
-        
-        # Add background to text for better visibility
+        # Add simple "FIRE" label
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 0.8
         thickness = 2
+        label = "FIRE"
+        
+        # Add background to text for better visibility
         (text_width, text_height), _ = cv2.getTextSize(label, font, font_scale, thickness)
-        
-        # Draw background rectangle for text
-        cv2.rectangle(img, (x1, y1-text_height-10), (x1+text_width, y1), VISUALIZATION_COLOR, -1)
-        
-        # Add text
+        cv2.rectangle(img, (x1, y1-text_height-10), (x1+text_width, y1), (0, 255, 0), -1)
         cv2.putText(img, label, (x1, y1-5), font, font_scale, (0, 0, 0), thickness)
         
         # Save visualization
@@ -331,8 +408,16 @@ If no fire is detected, return:
     def process_image(self, image_path: Path) -> bool:
         """Process a single image and save its label"""
         try:
-            # Get fire location data
-            fire_data = self.get_fire_location(image_path)
+            self.logger.info(f"\nProcessing image: {image_path.name}")
+            
+            # Get API response
+            response = self.get_llama_response(image_path)
+            self.logger.debug(f"API response: {response}")
+            
+            # Extract fire location from response
+            fire_data = self.get_fire_location(response)
+            self.logger.debug(f"Extracted fire data: {fire_data}")
+            
             if not fire_data:
                 return False
                 
