@@ -20,43 +20,37 @@ import numpy as np
 BASE_DIR = Path(__file__).parent.parent  # This gets us to the project root
 DATASET_DIR = BASE_DIR / 'data' / 'fire_dataset'
 
-def cleanup_directories():
-    """Remove previous labels, visualizations, and .npy files"""
-    # Only clean up labels and visualizations, preserve images
-    labels_dir = DATASET_DIR / 'labels'
-    viz_dir = DATASET_DIR / 'visualizations'
-    
-    # Remove labels and visualizations
+def cleanup_directories(dataset_root: Path) -> Path:
+    """Clean up previous labels and visualizations"""
+    # Clean up labels
+    labels_dir = dataset_root / 'labels'
     if labels_dir.exists():
-        shutil.rmtree(labels_dir)
+        for label_file in labels_dir.glob('**/*.txt'):
+            label_file.unlink()
         print(f"Cleaned up previous labels in {labels_dir}")
-    
+
+    # Clean up visualizations
+    viz_dir = dataset_root / 'visualizations'
     if viz_dir.exists():
-        shutil.rmtree(viz_dir)
+        for viz_file in viz_dir.glob('**/*.jpg'):
+            viz_file.unlink()
+        for viz_file in viz_dir.glob('**/*.png'):
+            viz_file.unlink()
         print(f"Cleaned up previous visualizations in {viz_dir}")
-    
-    # Remove .npy files from all splits
-    npy_count = 0
+
+    # Create fresh directory structure
     for split in ['train', 'val', 'test']:
-        split_dir = DATASET_DIR / 'images' / split
-        if split_dir.exists():
-            for npy_file in split_dir.glob('*.npy'):
-                npy_file.unlink()
-                npy_count += 1
-    
-    if npy_count > 0:
-        print(f"Removed {npy_count} .npy files from dataset")
-    
-    # Create fresh directories for labels and visualizations
-    for subdir in ['labels', 'visualizations']:
-        for split in ['train', 'val', 'test']:
-            (DATASET_DIR / subdir / split).mkdir(parents=True, exist_ok=True)
-    
+        (labels_dir / split).mkdir(parents=True, exist_ok=True)
+        (viz_dir / split).mkdir(parents=True, exist_ok=True)
     print("Created fresh directory structure for labels and visualizations")
-    return DATASET_DIR
+
+    # Create and return logs directory
+    logs_dir = dataset_root / 'logs'
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    return logs_dir
 
 # Clean up and create fresh directories
-log_dir = cleanup_directories()
+log_dir = cleanup_directories(DATASET_DIR)
 
 # Configure logging
 logging.basicConfig(
@@ -170,125 +164,146 @@ class LlamaLabeler:
         """Get fire location with metadata context"""
         metadata, img = self.get_image_metadata(image_path)
         
-        system_prompt = f"""You are a YOLOv8 fire detection training assistant. Your ONLY job is to return a single JSON object with precise fire coordinates.
+        system_prompt = """You are a precise YOLOv8 fire detection labeling assistant. Your ONLY task is to output a single, valid JSON object.
 
-IMAGE CONTEXT:
-- Dimensions: {metadata['dimensions']}
-- Aspect Ratio: {metadata['aspect_ratio']}
-- Center Point: ({metadata['center_x']}, {metadata['center_y']})
-- Mean Brightness: {metadata['mean_brightness']}"""
+CRITICAL RULES:
+1. ONLY output valid JSON - no explanations, no markdown, no additional text
+2. NEVER skip labeling if you see fire in the image
+3. NEVER include smoke or glow in bounding box measurements
+4. NEVER use ranges (like "0.4-0.5") for coordinates - use single precise values
+5. NEVER return coordinates outside 0.1-0.9 range
+6. NEVER add fields that aren't explicitly requested
+7. ALWAYS ensure bbox is tight around visible flames only"""
 
-        # Rest of your existing prompt remains the same, but update the coordinate guide:
-        coordinate_guide = f"""
-COORDINATE GUIDE:
-- x,y: Center point of the ACTIVE FLAMES ONLY (NOT the entire fire scene)
-- w,h: Width/Height of ONLY the visible flames
-- Image center is at ({metadata['center_x']}, {metadata['center_y']})
-- Normalize all values relative to {metadata['dimensions']}:
-  * x values: divide by width {metadata['width']}
-  * y values: divide by height {metadata['height']}
-- CRITICAL: Box must be AS TIGHT AS POSSIBLE around flames
-- DO NOT include:
-  * Smoke
-  * Fire reflections
-  * Heat distortion
-  * Surrounding damage
-  * Entire burning objects
-- ONLY include the actual visible flames themselves
-"""
+        task_prompt = f"""LABELING INSTRUCTIONS:
+1. Identify fire type:
+   - building_fire: Fires in/on buildings
+   - forest_fire: Fires in nature/vegetation
+   - vehicle_fire: Fires involving vehicles
 
-        user_prompt = """Return ONLY this JSON structure for the ACTIVE FLAMES in the image:
-{
-    "fire_type": "forest_fire" or "building_fire" or "vehicle_fire",
-    "severity": "low" or "medium" or "high",
-    "description": "Brief description under 50 chars",
-    "bbox": {
-        "x": 0.1-0.9,  // EXACT center of ACTIVE FLAMES only
-        "y": 0.1-0.9,  // EXACT center of ACTIVE FLAMES only
-        "w": 0.1-0.9,  // EXACT width of ACTIVE FLAMES only
-        "h": 0.1-0.9   // EXACT height of ACTIVE FLAMES only
-    }
-}
+2. Create precise bounding box:
+   - x,y: Exact center point of visible flames
+   - w,h: Width/height of visible flames only
+   - All values must be between 0.1 and 0.9
+   - Image dimensions: {metadata['dimensions']}
+   - Center reference: ({metadata['center_x']}, {metadata['center_y']})
 
-CRITICAL RULES FOR TIGHT BOUNDING BOXES:
-- Box MUST be as tight as possible around ACTIVE FLAMES
-- Include ONLY the bright, visible flame regions
-- Exclude all smoke, glow, and heat effects
-- For multiple flames, box the largest concentrated flame area
-- Better to be too tight than too loose
-- Precision is critical for training accuracy
+EXPECTED FORMAT:
+{{
+    "fire_type": "building_fire|forest_fire|vehicle_fire",
+    "bbox": {{
+        "x": float,  // center-x of flames (0.1-0.9)
+        "y": float,  // center-y of flames (0.1-0.9)
+        "w": float,  // width of flames (0.1-0.9)
+        "h": float   // height of flames (0.1-0.9)
+    }}
+}}
 
-BAD EXAMPLES (DO NOT DO THESE):
-❌ Boxing entire burning building
-❌ Including smoke or heat haze
-❌ Loose/approximate boundaries
-❌ Multiple separate flame regions
-❌ Including fire reflections/glow
+Return ONLY the JSON object. No explanations or additional text."""
 
-GOOD EXAMPLES (DO THIS):
-✅ Tight box around main flame body
-✅ Precise flame boundaries
-✅ Single concentrated flame area
-✅ Only bright, active flames
-✅ Exact center on flame mass
-"""
+        encoded_image = self.encode_image(image_path)
+        if not encoded_image:
+            raise ValueError(f"Failed to encode image: {image_path}")
 
         try:
-            encoded_image = self.encode_image(image_path)
-            if not encoded_image:
-                return None
-
-            # Add system message to API call
-            response = self.call_api(encoded_image, system_prompt + "\n\n" + user_prompt)
+            response = self.call_api(encoded_image, task_prompt)
             
-            if 'choices' not in response:
-                self.logger.error(f"Invalid API response: {response}")
-                return None
-
-            content = response['choices'][0]['message']['content'].strip()
+            # Check if response is already a dict
+            if isinstance(response, dict):
+                content = response.get('choices', [{}])[0].get('message', {}).get('content', '')
+            else:
+                content = response
             
-            # Try to extract JSON if there's any surrounding text
-            try:
-                # Find JSON-like structure
-                json_match = re.search(r'\{[^{]*"fire_type".*\}', content, re.DOTALL)
-                if json_match:
-                    content = json_match.group(0)
-                data = json.loads(content)
-                
-                # Strict validation
-                if not all(key in data for key in ['fire_type', 'severity', 'description', 'bbox']):
-                    raise ValueError("Missing required fields")
-                    
-                if data['fire_type'] not in ['forest_fire', 'building_fire', 'vehicle_fire']:
-                    raise ValueError(f"Invalid fire_type: {data['fire_type']}")
-                    
-                if data['severity'] not in ['low', 'medium', 'high']:
-                    raise ValueError(f"Invalid severity: {data['severity']}")
-                    
-                if len(data['description']) > 50:
-                    raise ValueError("Description too long")
-                    
-                # Validate bbox values
-                bbox = data['bbox']
-                required_bbox_keys = ['x', 'y', 'w', 'h']
-                if not all(key in bbox for key in required_bbox_keys):
-                    raise ValueError("Missing bbox coordinates")
-                    
-                for key, value in bbox.items():
-                    if not isinstance(value, (int, float)):
-                        raise ValueError(f"Invalid bbox {key}: must be number")
-                    if not (0.1 <= float(value) <= 0.9):
-                        raise ValueError(f"Invalid bbox {key}: {value} not in range 0.1-0.9")
-                
-                return data
-                
-            except json.JSONDecodeError:
-                self.logger.warning(f"Failed to parse JSON: {content}")
-                return None
-                
+            # Parse and validate the response
+            fire_data = self.parse_fire_json(content)
+            if fire_data:
+                self.validate_fire_data(fire_data)
+                return fire_data
+            return None
+            
         except Exception as e:
             self.logger.error(f"Error in get_fire_location: {str(e)}")
-            return None
+            raise
+
+    def parse_fire_json(self, response):
+        """Parse JSON from LLM response"""
+        try:
+            # Handle if response is already a string
+            if isinstance(response, str):
+                response = response.strip()
+            
+            # Find the first { and last } to extract just the JSON object
+            if isinstance(response, str):
+                start = response.find('{')
+                end = response.rfind('}') + 1
+                
+                if start >= 0 and end > start:
+                    json_str = response[start:end]
+                    # Remove any comments
+                    json_str = re.sub(r'\s*//.*$', '', json_str, flags=re.MULTILINE)
+                    return json.loads(json_str)
+            elif isinstance(response, dict):
+                return response
+            
+            raise ValueError("No valid JSON found in response")
+                
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Failed to parse JSON: {str(e)}\nResponse: {response}")
+            raise
+
+    def validate_bbox(self, bbox: dict) -> None:
+        """Validate bounding box coordinates"""
+        # Add tolerance for floating point comparison
+        eps = 1e-6
+        
+        required_fields = ['x', 'y', 'w', 'h']
+        for field in required_fields:
+            if field not in bbox:
+                raise ValueError(f"Missing required bbox field: {field}")
+            
+            val = bbox[field]
+            # Handle string values
+            if isinstance(val, str):
+                # Remove any comments and whitespace
+                val = re.sub(r'\s*//.*$', '', val).strip()
+                # Handle range format like "0.4-0.5"
+                if '-' in val:
+                    val = float(val.split('-')[0])
+                else:
+                    val = float(val)
+            
+            # Validate numeric range
+            if not isinstance(val, (int, float)):
+                raise ValueError(f"Invalid bbox {field} type: {type(val)}")
+                
+            if not (0.1 - eps <= float(val) <= 0.9 + eps):
+                raise ValueError(f"Invalid bbox {field}: {val} not in range 0.1-0.9")
+            
+            # Store validated value
+            bbox[field] = float(val)
+
+    def validate_fire_data(self, data: dict) -> None:
+        """Validate the fire detection data"""
+        if not isinstance(data, dict):
+            raise ValueError(f"Data must be a dictionary, got {type(data)}")
+            
+        required_fields = ['fire_type', 'bbox']
+        for field in required_fields:
+            if field not in data:
+                raise ValueError(f"Missing required field: {field}")
+
+        # Validate fire type
+        valid_types = {'forest_fire', 'building_fire', 'vehicle_fire'}
+        if data['fire_type'] not in valid_types:
+            raise ValueError(f"Invalid fire_type: {data['fire_type']}")
+
+        # Validate bbox structure and values
+        bbox = data['bbox']
+        if not isinstance(bbox, dict):
+            raise ValueError(f"bbox must be a dictionary, got {type(bbox)}")
+            
+        # Use the new validate_bbox method
+        self.validate_bbox(bbox)
 
     def visualize_prediction(self, img_path: Path, label_data: dict) -> Path:
         """Draw bounding box on image and save visualization."""
@@ -634,87 +649,109 @@ GOOD EXAMPLES (DO THIS):
             self.logger.error(f"Failed to parse JSON: {str(e)}\nResponse: {response}")
             raise
 
-    def validate_fire_location(self, data: dict) -> None:
-        """Validate fire location data with more flexible ranges"""
-        # Skip validation if no fire detected
-        if data is None:
-            return
-            
-        required_fields = ['fire_type', 'severity', 'description', 'bbox']
-        if not all(field in data for field in required_fields):
-            raise ValueError(f"Missing required fields. Need: {required_fields}")
-            
-        valid_types = ['building_fire', 'forest_fire', 'vehicle_fire']
-        if data['fire_type'] not in valid_types:
-            raise ValueError(f"Invalid fire_type: {data['fire_type']}")
-            
-        valid_severities = ['low', 'medium', 'high']
-        if data['severity'] not in valid_severities:
-            raise ValueError(f"Invalid severity: {data['severity']}")
-            
-        # Increased description length limit
-        if len(data['description']) > 200:  
-            self.logger.warning(f"Description too long ({len(data['description'])} chars), truncating...")
-            data['description'] = data['description'][:200]
-            
-        bbox = data['bbox']
-        required_bbox_fields = ['x', 'y', 'w', 'h']
-        if not all(field in bbox for field in required_bbox_fields):
-            raise ValueError(f"Missing bbox fields. Need: {required_bbox_fields}")
-            
-        # Validate bbox values
-        for key, value in bbox.items():
-            if not isinstance(value, (int, float)):
-                raise ValueError(f"Invalid bbox {key}: {value} not a number")
-            if value < 0.0 or value > 1.0:
-                raise ValueError(f"Invalid bbox {key}: {value} not in range 0-1")
-
     def save_yolo_label(self, image_path: Path, fire_data: dict) -> Path:
         """Convert fire detection data to YOLO format and save label file"""
+        # Convert fire_type to class index
+        fire_type_to_class = {
+            'building_fire': 0,
+            'forest_fire': 1,
+            'vehicle_fire': 2
+        }
+        
+        class_idx = fire_type_to_class[fire_data['fire_type']]
+        bbox = fire_data['bbox']
+        
+        # Create label file path (same name as image but .txt extension)
+        label_path = self.labels_dir / image_path.parent.name / f"{image_path.stem}.txt"
+        
+        # Create YOLO format line: <class> <x> <y> <width> <height>
+        yolo_line = f"{class_idx} {bbox['x']} {bbox['y']} {bbox['w']} {bbox['h']}\n"
+        
+        # Save label file
+        label_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(label_path, 'w') as f:
+            f.write(yolo_line)
+            
+        self.logger.info(f"Saved YOLO label to: {label_path}")
+        return label_path
+
+    def save_visualization(self, img_path: Path, label_data: dict) -> Path:
+        """Draw bounding box on image and save visualization."""
+        # Create visualization directory if it doesn't exist
+        viz_dir = self.dataset_root / 'visualizations' / img_path.parent.name
+        viz_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Read image
+        img = cv2.imread(str(img_path))
+        if img is None:
+            self.logger.error(f"Failed to read image: {img_path}")
+            return None
+            
+        h, w = img.shape[:2]
+        
+        # Get bbox coordinates
+        bbox = label_data.get('bbox', {})
+        x = bbox.get('x', 0.5)
+        y = bbox.get('y', 0.5)
+        width = bbox.get('w', 0.8)
+        height = bbox.get('h', 0.8)
+        
+        # Convert normalized coordinates to pixel coordinates
+        x1 = int((x - width/2) * w)
+        y1 = int((y - height/2) * h)
+        x2 = int((x + width/2) * w)
+        y2 = int((y + height/2) * h)
+        
+        # Ensure coordinates are within image bounds
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(w, x2), min(h, y2)
+        
+        # Draw rectangle
+        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        
+        # Add label with fire type
+        label = f"{label_data['fire_type']}"
+        
+        # Add background to text for better visibility
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.8
+        thickness = 2
+        (text_width, text_height), _ = cv2.getTextSize(label, font, font_scale, thickness)
+        
+        # Draw background rectangle for text
+        cv2.rectangle(img, (x1, y1-text_height-10), (x1+text_width, y1), (0, 255, 0), -1)
+        
+        # Add text
+        cv2.putText(img, label, (x1, y1-5), font, font_scale, (0, 0, 0), thickness)
+        
+        # Save visualization
+        viz_path = viz_dir / f"viz_{img_path.name}"
+        cv2.imwrite(str(viz_path), img)
+        
+        self.logger.info(f"Saved visualization to {viz_path}")
+        return viz_path
+
+    def process_image(self, image_path: Path) -> bool:
+        """Process a single image and save its label"""
         try:
-            self.logger.debug(f"Attempting to save label for {image_path.name}")
-            
-            # Skip if no fire detected
-            if fire_data is None:
-                self.logger.info(f"No label needed for {image_path.name} (no fire detected)")
-                return None
+            # Get fire location data
+            fire_data = self.get_fire_location(image_path)
+            if not fire_data:
+                return False
                 
-            # Map fire types to class indices
-            fire_type_to_class = {
-                'building_fire': 0,
-                'forest_fire': 1,
-                'vehicle_fire': 2
-            }
+            # Save YOLO format label
+            label_path = self.save_yolo_label(image_path, fire_data)
             
-            # Get class index
-            class_idx = fire_type_to_class[fire_data['fire_type']]
+            # Save visualization
+            viz_path = self.save_visualization(image_path, fire_data)
+            if not viz_path:
+                self.logger.warning(f"Failed to save visualization for {image_path.name}")
             
-            # Get bbox coordinates (already normalized)
-            bbox = fire_data['bbox']
-            x_center = bbox['x']
-            y_center = bbox['y']
-            width = bbox['w']
-            height = bbox['h']
-            
-            # Create YOLO format string
-            yolo_line = f"{class_idx} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}\n"
-            
-            # Determine label path (same name as image but .txt extension)
-            label_path = (self.dataset_root / 'labels' / image_path.parent.name / 
-                         image_path.stem).with_suffix('.txt')
-                     
-            # Ensure the label directory exists
-            label_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # Save label file
-            label_path.write_text(yolo_line)
-            self.logger.info(f"Saved YOLO label to {label_path}")
-            
-            return label_path
+            return True
             
         except Exception as e:
-            self.logger.error(f"Failed to save YOLO label for {image_path}: {str(e)}")
-            raise
+            self.logger.error(f"Error processing {image_path.name}: {str(e)}")
+            return False
 
     def save_dataset_config(self):
         """Save YOLOv dataset configuration file"""
@@ -738,20 +775,45 @@ GOOD EXAMPLES (DO THIS):
         self.logger.info(f"\nSaved dataset configuration to: {yaml_path}")
 
 def main():
-    labeler = LlamaLabeler()
-    
-    # Test on a small batch first
-    print("Testing on 5 images...")
-    test_results = labeler.process_test_batch(5)
-    
-    # Ask for confirmation before processing full dataset
-    input("\nReview the visualizations in the 'visualizations' directory.")
-    response = input("Continue with full dataset? (y/n): ")
-    
-    if response.lower() == 'y':
-        labeler.prepare_dataset('data/fire_dataset')
-    else:
-        print("Aborting full dataset processing")
+    try:
+        # Initialize labeler
+        labeler = LlamaLabeler()
+        
+        # Clean up and prepare directories
+        cleanup_directories(labeler.dataset_root)
+        
+        # Process the full dataset directly
+        print("\nProcessing full dataset...")
+        
+        # Process each split
+        splits = ['train', 'val', 'test']
+        for split in splits:
+            print(f"\nProcessing {split} split...")
+            split_dir = labeler.images_dir / split
+            
+            # Get all images in split
+            image_files = list(split_dir.glob('*.[jp][pn][g]'))  # matches .jpg, .jpeg, .png
+            print(f"Found {len(image_files)} images in {split}")
+            
+            # Process images with progress bar
+            success_count = 0
+            for img_path in tqdm(image_files, desc=split):
+                try:
+                    if labeler.process_image(img_path):
+                        success_count += 1
+                except Exception as e:
+                    print(f"Error processing {img_path.name}: {e}")
+                    continue
+                    
+            print(f"Successfully processed {success_count}/{len(image_files)} images in {split}")
+        
+        # Save dataset configuration
+        labeler.save_dataset_config()
+        print("\nDataset preparation completed")
+        
+    except Exception as e:
+        print(f"Error in main: {str(e)}")
+        raise
 
 if __name__ == "__main__":
     main()
