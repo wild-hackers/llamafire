@@ -40,6 +40,10 @@ def test_process_images():
                 
         except Exception as e:
             print(f"Error processing {img_path.name}: {e}")
+    
+    # Print visualization paths at the end
+    print("\nChecking visualization paths:")
+    labeler.get_visualization_paths()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

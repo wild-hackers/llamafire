@@ -16,9 +16,10 @@ import re
 import cv2
 import numpy as np
 from together import Together  # Add this import at the top
+import random
 
 # Set the correct base directory (relative to project root)
-BASE_DIR = Path(__file__).parent.parent  # This gets us to the project root
+BASE_DIR = Path.cwd()  # Use current working directory
 DATASET_DIR = BASE_DIR / 'data' / 'binary_fire_dataset'
 VALID_IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png')
 VISUALIZATION_COLOR = (0, 255, 0)  # Green in BGR
@@ -86,7 +87,7 @@ class LlamaLabeler:
             raise ValueError("ERROR: TOGETHER_API_KEY not found in .env file")
             
         # Initialize Together client
-        self.client = Together()
+        self.client = Together(api_key=self.api_key)
         
         # Initialize paths
         self.dataset_root = Path(self.config['dataset_root'])
@@ -332,7 +333,7 @@ class LlamaLabeler:
             self.logger.info(f"No fire detected in {image_path.name}, skipping label file")
             return None
             
-        # For fire detection, class index is always 0 (not 1)
+        # For binary fire detection, class index is always 0
         class_idx = 0
         bbox = fire_data['bbox']
         
@@ -452,12 +453,66 @@ class LlamaLabeler:
         
         self.logger.info(f"\nSaved dataset configuration to: {yaml_path}")
 
+    def get_visualization_paths(self):
+        """Print all visualization paths"""
+        print("\nVisualization directories:")
+        for split in ['train', 'val', 'test']:
+            viz_path = self.viz_dir / split
+            print(f"- {split}: {viz_path}")
+            if viz_path.exists():
+                files = list(viz_path.glob('viz_*.jpg'))
+                print(f"  Found {len(files)} visualizations")
+                for f in files[:3]:  # Show first 3 examples
+                    print(f"  • {f.name}")
+
+    def verify_images(self):
+        """Verify that images exist in the correct directories"""
+        print("\nVerifying image directories:")
+        total_images = 0
+        for split in ['train', 'val', 'test']:
+            split_dir = self.images_dir / split
+            print(f"\nChecking {split} directory: {split_dir.absolute()}")
+            
+            if not split_dir.exists():
+                print(f"❌ Directory missing: {split_dir}")
+                continue
+                
+            # Debug: List directory contents
+            print("Directory contents:")
+            for item in split_dir.iterdir():
+                print(f"  {item.name}")
+                
+            images = []
+            for ext in ['*.jpg', '*.jpeg', '*.png']:
+                found = list(split_dir.glob(ext))
+                print(f"Found {len(found)} {ext} files")
+                images.extend(found)
+            
+            print(f"\n{split} directory ({split_dir}):")
+            print(f"Found {len(images)} total images")
+            if images:
+                print("Sample images:")
+                for img in sorted(images)[:5]:
+                    print(f"  • {img.name}")
+            total_images += len(images)
+        
+        return total_images > 0
+
 def main():
     try:
+        # Print current working directory and paths
+        print(f"Current working directory: {Path.cwd()}")
+        print(f"Dataset directory: {DATASET_DIR}")
+        
         # Initialize labeler
         labeler = LlamaLabeler()
         
-        # Clean up and prepare directories
+        # Verify images exist before proceeding
+        if not labeler.verify_images():
+            print("\n❌ No images found in dataset directories!")
+            return
+            
+        # Clean up and prepare directories (only labels and visualizations)
         cleanup_directories(labeler.dataset_root)
         
         # Process the full dataset directly
@@ -465,12 +520,25 @@ def main():
         
         # Process each split
         splits = ['train', 'val', 'test']
+        total_processed = 0
+        total_success = 0
+        
         for split in splits:
             print(f"\nProcessing {split} split...")
             split_dir = labeler.images_dir / split
             
-            # Get all images in split
-            image_files = list(split_dir.glob('*.[jp][pn][g]'))  # matches .jpg, .jpeg, .png
+            # Get all images in split (handle both .jpg and .png)
+            image_files = []
+            for ext in ['*.jpg', '*.jpeg', '*.png']:
+                image_files.extend(list(split_dir.glob(ext)))
+            
+            # Sort for consistent processing
+            image_files = sorted(image_files)
+            
+            if not image_files:
+                print(f"No images found in {split_dir}")
+                continue
+                
             print(f"Found {len(image_files)} images in {split}")
             
             # Process images with progress bar
@@ -482,12 +550,41 @@ def main():
                 except Exception as e:
                     print(f"Error processing {img_path.name}: {e}")
                     continue
-                    
+            
+            total_processed += len(image_files)
+            total_success += success_count
             print(f"Successfully processed {success_count}/{len(image_files)} images in {split}")
         
         # Save dataset configuration
         labeler.save_dataset_config()
+        
+        # Print final statistics
         print("\nDataset preparation completed")
+        print(f"Total images processed: {total_processed}")
+        print(f"Successfully labeled: {total_success}")
+        
+        # Avoid division by zero
+        if total_processed > 0:
+            success_rate = (total_success/total_processed)*100
+            print(f"Success rate: {success_rate:.1f}%")
+        else:
+            print("No images were processed")
+        
+        # Print visualization paths
+        labeler.get_visualization_paths()
+        
+        # Print absolute paths for verification
+        print("\nVerifying paths:")
+        print(f"Images directory: {labeler.images_dir.absolute()}")
+        print(f"Labels directory: {labeler.labels_dir.absolute()}")
+        print(f"Visualizations directory: {labeler.viz_dir.absolute()}")
+        
+        # List contents of train directory
+        train_dir = labeler.images_dir / 'train'
+        if train_dir.exists():
+            print(f"\nContents of {train_dir}:")
+            for f in sorted(train_dir.glob('*')):
+                print(f"  {f.name}")
         
     except Exception as e:
         print(f"Error in main: {str(e)}")
