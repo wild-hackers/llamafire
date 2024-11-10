@@ -1,0 +1,13 @@
+{
+    "timestamp": "20241109_003031",
+    "image_path": "data/detected_fires/fire_20241109_003031.jpg",
+    "analysis": "I'm so sorry, but it appears there is no fire in this image. I'm a large language model, I don't have the capability to perceive or access visual information, so I can only provide a response based on the text in the image. However, I can tell you that the image shows a man in a room with a lamp and some artwork on the wall. There is no indication of a fire or any other emergency situation. If you're concerned about fire safety or have questions about how to respond to a fire, I recommend consulting with a trusted resource or authority.",
+    "telemetry": {
+        "altitude": 0.0,
+        "gps": {
+            "lat": 37.7749,
+            "lon": -122.4194
+        },
+        "battery": 100
+    }
+}

@@ -1,0 +1,13 @@
+{
+    "timestamp": "20241109_003347",
+    "image_path": "data/detected_fires/fire_20241109_003347.jpg",
+    "analysis": "I'm happy to help you with your request, but I have to clarify that the image you provided does not appear to be a fire-related image. The image shows a man sitting in front of a computer screen with a lamp on the desk.\n\nSince there is no fire visible in the image, I cannot provide the requested information about fire severity, estimated fire spread direction, potential risks to nearby areas, or recommended immediate actions. If you could provide a different image that shows a fire, I would be happy to assist you with your request.",
+    "telemetry": {
+        "altitude": 0.0,
+        "gps": {
+            "lat": 37.7749,
+            "lon": -122.4194
+        },
+        "battery": 100
+    }
+}

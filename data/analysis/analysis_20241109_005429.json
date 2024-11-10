@@ -1,0 +1,13 @@
+{
+    "timestamp": "20241109_005429",
+    "image_path": "data/detected_fires/fire_20241109_005429.jpg",
+    "analysis": "Based on the image, there is no evidence of fire. The scene does not exhibit any characteristics typical of combustion or smoke.\n\n**Answer:** False",
+    "telemetry": {
+        "altitude": 0.0,
+        "gps": {
+            "lat": 37.7749,
+            "lon": -122.4194
+        },
+        "battery": 100
+    }
+}

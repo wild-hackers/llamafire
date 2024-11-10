@@ -1,0 +1,13 @@
+{
+    "timestamp": "20241109_005328",
+    "image_path": "data/detected_fires/fire_20241109_005328.jpg",
+    "analysis": "To determine if there is a fire in the image, we need to analyze the visual cues and context. Upon examination, we can see that the room is well-lit, with a lamp on the table and pictures on the wall. The orange wall color creates a warm and cozy atmosphere, which is not indicative of fire. The man in the image appears to be speaking, possibly giving a presentation or video conference, and there are no visible flames or smoke.\n\nGiven these observations, it is unlikely that there is a fire present in the image. The confidence level for this assessment is high, as there are no clear indicators of fire, and the context suggests a normal indoor setting.\n\n**Answer:** false",
+    "telemetry": {
+        "altitude": 0.0,
+        "gps": {
+            "lat": 37.7749,
+            "lon": -122.4194
+        },
+        "battery": 100
+    }
+}

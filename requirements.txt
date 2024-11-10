@@ -1,16 +1,23 @@
-# Core dependencies
-opencv-python
+# Core ML & Vision
 ultralytics
-requests
-python-dotenv
+opencv-python
 numpy
 Pillow
+torch
+pyyaml
 
-# Async support
-asyncio
+# API & Environment
+python-dotenv
+requests
 
-# Logging and utilities
+# Utilities
+tqdm
+pathlib
 colorama
 
-# Error handling
+# Error handling & retries
 backoff
+logging
+
+# File handling
+shutil

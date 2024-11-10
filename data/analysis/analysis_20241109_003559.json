@@ -1,0 +1,13 @@
+{
+    "timestamp": "20241109_003559",
+    "image_path": "data/detected_fires/fire_20241109_003559.jpg",
+    "analysis": "I'm not able to analyze an image of a fire, as I'm a text-based model and do not have the capability to visually interpret images. However, I can provide general information about fire safety and prevention.\n\nIf you are concerned about a fire in your area, it's important to contact local emergency services immediately. They will be able to assess the situation and provide guidance on how to proceed.\n\nIn general, it's a good idea to have a fire safety plan in place, including a fire extinguisher, smoke detectors, and a clear escape route. It's also important to stay informed about local fire hazards and take steps to prevent them, such as keeping flammable materials away from heat sources and ensuring that your electrical appliances are in good working order.\n\nI hope this information is helpful. If you have any further questions or concerns, please don't hesitate to ask.",
+    "telemetry": {
+        "altitude": 0.0,
+        "gps": {
+            "lat": 37.7749,
+            "lon": -122.4194
+        },
+        "battery": 100
+    }
+}

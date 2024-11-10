@@ -1,0 +1,9 @@
+names:
+- building_fire
+- forest_fire
+- vehicle_fire
+nc: 3
+path: /Users/vlad/Dropbox/CODE/projects/hackathon/llama3-hackathon/data/fire_dataset
+test: images/test
+train: images/train
+val: images/val

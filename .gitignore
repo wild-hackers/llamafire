@@ -81,8 +81,8 @@ htmlcov/
 .env.*
 
 # Project specific
-data/
-models/
+
+runs/
 *.pt
 *.mp4
 *.jpg
