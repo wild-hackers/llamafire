@@ -7,99 +7,155 @@
     <style>
         .gallery-container {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 30px;
             padding: 20px;
         }
         
         .image-pair {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 15px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        
+        .image-pair:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
         }
         
         .image-container {
             position: relative;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            overflow: hidden;
         }
         
         .image-container img {
             width: 100%;
-            height: auto;
-            border-radius: 4px;
+            height: 300px;  /* Fixed height */
+            object-fit: cover;  /* Maintain aspect ratio */
+            border-radius: 8px;
             transition: transform 0.3s ease;
+        }
+        
+        .image-container:hover img {
+            transform: scale(1.05);
         }
         
         .status-badge {
             position: absolute;
-            top: 10px;
-            right: 10px;
-            padding: 5px 10px;
-            border-radius: 4px;
-            font-size: 0.8em;
+            top: 15px;
+            right: 15px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
             font-weight: bold;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.7);
             color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .split-header {
+            background: linear-gradient(to right, #f8f9fa, #ffffff);
+            padding: 20px;
+            margin: 30px 0;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .stats {
+            font-size: 1em;
+            color: #6c757d;
+            margin-top: 10px;
         }
         
         .progress {
-            height: 5px;
+            height: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        
+        .btn-primary {
+            padding: 12px 24px;
+            font-size: 1.1em;
+            border-radius: 8px;
+        }
+        
+        /* Image pair labels */
+        .image-label {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #495057;
         }
     </style>
 </head>
-<body>
-    <div class="container-fluid">
-        <div class="row py-4">
+<body class="bg-light">
+    <div class="container-fluid py-5">
+        <div class="row mb-5">
             <div class="col">
-                <h1>Llama Fire Annotator</h1>
-                <button id="processBtn" class="btn btn-primary mb-4">Process All Images</button>
+                <h1 class="display-4 mb-4">Llama Fire Annotator</h1>
+                <button id="processBtn" class="btn btn-primary">
+                    <i class="fas fa-fire"></i> Process All Images
+                </button>
                 
-                <div id="progress" style="display: none;" class="mb-4">
+                <div id="progress" style="display: none;" class="mt-4">
                     <div class="progress">
-                        <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 0%"></div>
                     </div>
                 </div>
             </div>
         </div>
 
         {% for split in ['train', 'val', 'test'] %}
-        <div class="split-header mb-4">
-            <h3>{{ split|title }} Split</h3>
-            <p class="text-muted">
-                Total Images: {{ dataset_info[split].total_images }} |
-                Processed: {{ dataset_info[split].processed_images }} |
-                Visualizations: {{ dataset_info[split].visualizations }}
-            </p>
+        <div class="split-header">
+            <h2 class="h3 mb-3">{{ split|title }} Split</h2>
+            <div class="stats">
+                <span class="badge bg-primary me-2">Total: {{ dataset_info[split].total_images }}</span>
+                <span class="badge bg-success me-2">Processed: {{ dataset_info[split].processed_images }}</span>
+                <span class="badge bg-info">Visualizations: {{ dataset_info[split].visualizations }}</span>
+            </div>
         </div>
         
         <div class="gallery-container">
             {% for image in dataset_info[split].images %}
             <div class="image-pair">
-                <!-- Original Image -->
-                <a href="{{ url_for('static', filename='images/' + split + '/' + image.name) }}" 
-                   data-lightbox="gallery-{{ split }}"
-                   data-title="Original: {{ image.name }}">
-                    <div class="image-container">
-                        <img src="{{ url_for('static', filename='images/' + split + '/' + image.name) }}" 
-                             alt="Original image">
-                        <span class="status-badge">Original</span>
+                <div class="row">
+                    <div class="col-12">
+                        <!-- Original Image -->
+                        <a href="{{ url_for('static', filename='images/' + split + '/' + image.name) }}" 
+                           data-lightbox="gallery-{{ split }}"
+                           data-title="Original: {{ image.name }}">
+                            <div class="image-container">
+                                <img src="{{ url_for('static', filename='images/' + split + '/' + image.name) }}" 
+                                     alt="Original image"
+                                     loading="lazy">
+                                <span class="status-badge">Original</span>
+                            </div>
+                        </a>
+                        <div class="image-label">{{ image.name }}</div>
                     </div>
-                </a>
-                
-                <!-- Visualization Image -->
-                {% if image.has_visualization %}
-                <a href="{{ url_for('static', filename='images/viz/' + split + '/viz_' + image.name) }}"
-                   data-lightbox="gallery-{{ split }}"
-                   data-title="Annotated: {{ image.name }}">
-                    <div class="image-container">
-                        <img src="{{ url_for('static', filename='images/viz/' + split + '/viz_' + image.name) }}"
-                             alt="Annotated image"
-                             class="visualization">
-                        <span class="status-badge">Fire Detected</span>
+                    
+                    {% if image.has_visualization %}
+                    <div class="col-12 mt-3">
+                        <!-- Visualization Image -->
+                        <a href="{{ url_for('static', filename='images/viz/' + split + '/viz_' + image.name) }}"
+                           data-lightbox="gallery-{{ split }}"
+                           data-title="Fire Detection: {{ image.name }}">
+                            <div class="image-container">
+                                <img src="{{ url_for('static', filename='images/viz/' + split + '/viz_' + image.name) }}"
+                                     alt="Annotated image"
+                                     class="visualization"
+                                     loading="lazy">
+                                <span class="status-badge bg-danger">Fire Detected</span>
+                            </div>
+                        </a>
                     </div>
-                </a>
-                {% endif %}
+                    {% endif %}
+                </div>
             </div>
             {% endfor %}
         </div>
@@ -108,6 +164,7 @@
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/js/lightbox.min.js"></script>
+    <script src="https://kit.fontawesome.com/your-code.js"></script>
     <script>
         lightbox.option({
             'resizeDuration': 200,

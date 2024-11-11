@@ -32,7 +32,22 @@ echo "TOGETHER_API_KEY=your_key_here" > .env
 python llama_annotate.py
 ```
 
-2. Train YOLOv8 Model:
+2. Use Web Interface for Annotation:
+```bash
+# Create static directories for images
+mkdir -p static/images/{train,val,test,viz/train,viz/val,viz/test}
+
+# Start the annotation web interface
+python app_annotate.py
+
+# Visit http://127.0.0.1:5003 in your browser to:
+# - View all images in the dataset
+# - Process images with Llama Vision
+# - See fire detection visualizations
+# - Monitor annotation progress
+```
+
+3. Train YOLOv8 Model:
 ```bash
 # This will:
 # - Train on the labeled dataset
@@ -73,7 +88,9 @@ This will:
 │   ├── detection/              # Fire detection
 │   ├── analysis/               # Llama Vision analysis
 │   └── mock/                   # Mock drone interface
-└── requirements.txt            # Dependencies
+├── static/                     # Web interface assets
+│   └── images/                 # Served images
+└── templates/                  # HTML templates
 ```
 
 ## Requirements
@@ -84,6 +101,7 @@ This will:
 
 ## Notes
 - The system uses Together AI's Llama 3.2 Vision for initial dataset labeling
+- Web interface available for viewing and processing annotations
 - YOLOv8 is used for real-time detection after training
 - MPS (Metal Performance Shaders) is used on Apple Silicon Macs
 - CUDA is used if available on NVIDIA GPUs
