@@ -82,8 +82,6 @@ htmlcov/
 
 # Project specific
 
-runs/
-*.pt
 *.mp4
 .env
 
