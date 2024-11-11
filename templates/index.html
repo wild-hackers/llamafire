@@ -36,11 +36,22 @@
                     <button id="refreshBtn" class="btn btn-outline-primary btn-action me-2">
                         <i class="fas fa-sync-alt me-2"></i>Refresh
                     </button>
-                    <button id="processBtn" class="btn btn-primary btn-action">
+                    <button id="processBtn" 
+                            class="btn {% if dataset_info.processing_status.all_processed %}btn-secondary{% else %}btn-primary{% endif %} btn-action"
+                            {% if dataset_info.processing_status.all_processed %}disabled="disabled"{% endif %}
+                            data-total-images="{{ dataset_info.processing_status.total_images }}"
+                            data-processed-images="{{ dataset_info.processing_status.total_processed }}"
+                            title="{{ dataset_info.processing_status.message }}">
                         <i class="fas fa-play me-2"></i>Process All Images
                     </button>
                 </div>
             </div>
+            
+            {% if dataset_info.processing_status.all_processed %}
+            <div class="alert alert-success mt-3" role="alert">
+                <i class="fas fa-check-circle me-2"></i>All images have been processed successfully!
+            </div>
+            {% endif %}
             
             <div id="progress" style="display: none;" class="mt-4">
                 <div class="progress">

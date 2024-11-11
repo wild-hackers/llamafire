@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, send_file, Response, stream_with_context
+from flask import Flask, render_template, jsonify, request, send_file, Response, stream_with_context, url_for
 from pathlib import Path
 import logging
 import os
@@ -7,6 +7,7 @@ import sys
 import shutil
 import json
 import time
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Add project root to Python path
 ROOT_DIR = Path(__file__).parent
@@ -28,10 +29,24 @@ logging.getLogger('PIL').setLevel(logging.WARNING)
 def create_labeler():
     """Create and configure the labeler"""
     from llama_annotate import LlamaLabeler, cleanup_directories
+    
+    # Only clean if directories don't exist
+    labels_dir = Path('data/binary_fire_dataset/labels')
+    viz_dir = Path('data/binary_fire_dataset/visualizations')
+    
+    if not labels_dir.exists() and not viz_dir.exists():
+        cleanup_directories()  # Only cleanup if fresh start
+        
     return LlamaLabeler(), cleanup_directories
 
 # Create Flask app
 app = Flask(__name__)
+
+# Add proxy support for ngrok
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+# Configure for ngrok
+app.config['PREFERRED_URL_SCHEME'] = 'https'
 
 # Initialize labeler and get cleanup function
 labeler, cleanup_directories = create_labeler()
@@ -61,25 +76,30 @@ def init_static():
             for img in src_img_dir.glob('*.[jp][pn][g]'):
                 dst = static_dir / split / img.name
                 try:
-                    if not dst.exists() or not dst.samefile(img):
+                    if not dst.exists():
                         shutil.copy2(img, dst)
                         logger.debug(f"Copied {img.name} to {dst}")
                 except OSError:
                     shutil.copy2(img, dst)
                     logger.debug(f"Copied {img.name} to {dst}")
         
-        # Copy visualizations
-        src_viz_dir = labeler.viz_dir / split
-        if src_viz_dir.exists():
-            for viz in src_viz_dir.glob('viz_*'):
-                dst = static_dir / 'viz' / split / viz.name
-                try:
-                    if not dst.exists() or not dst.samefile(viz):
+        # Copy visualizations from both possible source directories
+        src_viz_dirs = [
+            labeler.viz_dir / split,  # Original viz directory
+            Path('static/images/viz') / split  # Static viz directory
+        ]
+        
+        for src_viz_dir in src_viz_dirs:
+            if src_viz_dir.exists():
+                for viz in src_viz_dir.glob('viz_*'):
+                    dst = static_dir / 'viz' / split / viz.name
+                    try:
+                        if not dst.exists():
+                            shutil.copy2(viz, dst)
+                            logger.debug(f"Copied {viz.name} to {dst}")
+                    except OSError:
                         shutil.copy2(viz, dst)
                         logger.debug(f"Copied {viz.name} to {dst}")
-                except OSError:
-                    shutil.copy2(viz, dst)
-                    logger.debug(f"Copied {viz.name} to {dst}")
 
     logger.info("Static directory initialized")
 
@@ -120,6 +140,14 @@ def stream():
 def process_images():
     """Process all images in dataset"""
     try:
+        # Check if all images are already processed
+        dataset_info = get_dataset_info()
+        if dataset_info['processing_status']['all_processed']:
+            return jsonify({
+                'status': 'skipped',
+                'message': 'All images have already been processed'
+            })
+
         global processing_status
         processing_status['is_processing'] = True
         
@@ -234,13 +262,18 @@ def get_visualization(split, filename):
         viz_filename = f"viz_{filename}"
     else:
         viz_filename = filename
-        
-    viz_path = labeler.viz_dir / split / viz_filename
-    logger.debug(f"Looking for visualization at: {viz_path}")
     
-    if viz_path.exists():
-        return send_file(str(viz_path.absolute()))
-    logger.warning(f"Visualization not found: {viz_path}")
+    # Check both possible locations for visualizations
+    possible_paths = [
+        labeler.viz_dir / split / viz_filename,
+        Path('static/images/viz') / split / viz_filename
+    ]
+    
+    for viz_path in possible_paths:
+        if viz_path.exists():
+            return send_file(str(viz_path.absolute()))
+    
+    logger.warning(f"Visualization not found: {viz_filename}")
     return "Image not found", 404
 
 @app.route('/static/images/<split>/<filename>')
@@ -254,6 +287,9 @@ def serve_image(split, filename):
 def get_dataset_info():
     """Get information about the dataset"""
     info = {}
+    total_images_all_splits = 0
+    total_processed_all_splits = 0
+    
     for split in ['train', 'val', 'test']:
         split_info = {
             'images': [],
@@ -270,41 +306,61 @@ def get_dataset_info():
                 images.extend(list(image_dir.glob(ext)))
         
         split_info['total_images'] = len(images)
-        
-        # Get ALL images with their visualizations (removed the [:5] limit)
-        for img_path in sorted(images):
-            viz_path = labeler.viz_dir / split / f"viz_{img_path.name}"
-            label_path = labeler.labels_dir / split / f"{img_path.stem}.txt"
-            
-            # Also check static directory for visualizations
-            static_viz_path = Path('static/images/viz') / split / f"viz_{img_path.name}"
-            has_viz = viz_path.exists() or static_viz_path.exists()
-            
-            split_info['images'].append({
-                'name': img_path.name,
-                'has_visualization': has_viz,
-                'has_label': label_path.exists(),
-                'path': f"{split}/{img_path.name}"
-            })
+        total_images_all_splits += split_info['total_images']
         
         # Count processed images
         labels_dir = labeler.labels_dir / split
         if labels_dir.exists():
             split_info['processed_images'] = len(list(labels_dir.glob('*.txt')))
+            total_processed_all_splits += split_info['processed_images']
+        
+        logger.info(f"Split {split}: {split_info['processed_images']}/{split_info['total_images']} images processed")
+        
+        # Get ALL images with their visualizations
+        for img_path in sorted(images):
+            # Check both possible locations for visualizations
+            viz_paths = [
+                labeler.viz_dir / split / f"viz_{img_path.name}",
+                Path('static/images/viz') / split / f"viz_{img_path.name}"
+            ]
+            label_path = labeler.labels_dir / split / f"{img_path.stem}.txt"
+            
+            has_viz = any(path.exists() for path in viz_paths)
+            has_label = label_path.exists()
+            
+            split_info['images'].append({
+                'name': img_path.name,
+                'has_visualization': has_viz,
+                'has_label': has_label,
+                'path': f"{split}/{img_path.name}"
+            })
         
         # Count visualizations from both directories
-        viz_dir = labeler.viz_dir / split
-        static_viz_dir = Path('static/images/viz') / split
-        viz_count = 0
+        viz_dirs = [
+            labeler.viz_dir / split,
+            Path('static/images/viz') / split
+        ]
         
-        if viz_dir.exists():
-            viz_count += len(list(viz_dir.glob('viz_*')))
-        if static_viz_dir.exists():
-            viz_count += len(list(static_viz_dir.glob('viz_*')))
-            
+        viz_count = sum(
+            len(list(viz_dir.glob('viz_*')))
+            for viz_dir in viz_dirs
+            if viz_dir.exists()
+        )
+        
         split_info['visualizations'] = viz_count
         
         info[split] = split_info
+    
+    logger.info(f"Total processed: {total_processed_all_splits}/{total_images_all_splits}")
+    logger.info(f"All processed: {total_processed_all_splits >= total_images_all_splits}")
+    
+    # Add processing status information
+    info['processing_status'] = {
+        'all_processed': total_processed_all_splits >= total_images_all_splits,
+        'total_images': total_images_all_splits,
+        'total_processed': total_processed_all_splits,
+        'message': 'All images have been processed' if total_processed_all_splits >= total_images_all_splits else 'Some images still need processing'
+    }
     
     return info
 
@@ -332,11 +388,15 @@ def debug_paths():
     return jsonify(paths)
 
 if __name__ == '__main__':
-    # Initialize Flask app with a different port
-    logger.info(f"Starting Llama Fire Annotator on http://127.0.0.1:5003")
+    # Initialize Flask app with ngrok configuration
+    logger.info("=" * 60)
+    logger.info(f"Starting Llama Fire Annotator")
+    logger.info(f"Local URL: http://localhost:5003")
+    logger.info(f"Ngrok URL: Configure with: ngrok http --domain=llamafire.ngrok.dev 5003")
+    logger.info("=" * 60)
+    
     app.run(
-        host='127.0.0.1',
-        port=5003,
-        debug=True, 
-        use_reloader=False
+        host='127.0.0.1',  # Only accept local connections (ngrok will proxy)
+        port=5003,  # Use port 5003 instead of 80
+        debug=False  # Disable debug mode in production
     )
