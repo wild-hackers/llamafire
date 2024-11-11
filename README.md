@@ -29,7 +29,7 @@ echo "TOGETHER_API_KEY=your_key_here" > .env
 # - Use Llama Vision to analyze images
 # - Create YOLO format labels
 # - Generate visualizations
-python prepare_binary_dataset.py
+python llama_annotate.py
 ```
 
 2. Train YOLOv8 Model:
