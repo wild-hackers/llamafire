@@ -88,3 +88,10 @@ htmlcov/
 # IDE
 .idea/
 .vscode/
+
+# Generated files
+static/images/
+data/binary_fire_dataset/visualizations/
+data/binary_fire_dataset/labels/
+runs/
+*.pt

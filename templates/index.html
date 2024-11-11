@@ -1,211 +1,121 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Llama Fire Annotator</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Llama Annotator | Admin Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/css/lightbox.min.css" rel="stylesheet">
-    <style>
-        .gallery-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-            gap: 30px;
-            padding: 20px;
-        }
-        
-        .image-pair {
-            background: #ffffff;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            transition: transform 0.2s;
-        }
-        
-        .image-pair:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-        }
-        
-        .image-container {
-            position: relative;
-            margin-bottom: 20px;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        
-        .image-container img {
-            width: 100%;
-            height: 300px;  /* Fixed height */
-            object-fit: cover;  /* Maintain aspect ratio */
-            border-radius: 8px;
-            transition: transform 0.3s ease;
-        }
-        
-        .image-container:hover img {
-            transform: scale(1.05);
-        }
-        
-        .status-badge {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.9em;
-            font-weight: bold;
-            background: rgba(0,0,0,0.7);
-            color: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-        
-        .split-header {
-            background: linear-gradient(to right, #f8f9fa, #ffffff);
-            padding: 20px;
-            margin: 30px 0;
-            border-radius: 12px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        
-        .stats {
-            font-size: 1em;
-            color: #6c757d;
-            margin-top: 10px;
-        }
-        
-        .progress {
-            height: 8px;
-            border-radius: 4px;
-            margin-top: 10px;
-        }
-        
-        .btn-primary {
-            padding: 12px 24px;
-            font-size: 1.1em;
-            border-radius: 8px;
-        }
-        
-        /* Image pair labels */
-        .image-label {
-            text-align: center;
-            margin-top: 10px;
-            font-size: 0.9em;
-            color: #495057;
-        }
-    </style>
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
 </head>
-<body class="bg-light">
-    <div class="container-fluid py-5">
-        <div class="row mb-5">
-            <div class="col">
-                <h1 class="display-4 mb-4">Llama Fire Annotator</h1>
-                <button id="processBtn" class="btn btn-primary">
-                    <i class="fas fa-fire"></i> Process All Images
-                </button>
-                
-                <div id="progress" style="display: none;" class="mt-4">
-                    <div class="progress">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                             role="progressbar" style="width: 0%"></div>
-                    </div>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h3 class="sidebar-brand">
+                <i class="fas fa-dragon me-2"></i> Llama Annotator
+            </h3>
+        </div>
+        <nav class="nav flex-column">
+            <a class="nav-link active" href="#"><i class="fas fa-home me-2"></i>Dashboard</a>
+            <a class="nav-link" href="#train"><i class="fas fa-train me-2"></i>Train Split</a>
+            <a class="nav-link" href="#val"><i class="fas fa-check-circle me-2"></i>Val Split</a>
+            <a class="nav-link" href="#test"><i class="fas fa-vial me-2"></i>Test Split</a>
+            <a class="nav-link" href="#settings"><i class="fas fa-cog me-2"></i>Settings</a>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <div class="row align-items-center">
+                <div class="col">
+                    <h4 class="mb-0">Control Panel</h4>
                 </div>
+                <div class="col-auto">
+                    <button id="refreshBtn" class="btn btn-outline-primary btn-action me-2">
+                        <i class="fas fa-sync-alt me-2"></i>Refresh
+                    </button>
+                    <button id="processBtn" class="btn btn-primary btn-action">
+                        <i class="fas fa-play me-2"></i>Process All Images
+                    </button>
+                </div>
+            </div>
+            
+            <div id="progress" style="display: none;" class="mt-4">
+                <div class="progress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"></div>
+                </div>
+                <small class="text-muted mt-2 d-block" id="progress-text"></small>
             </div>
         </div>
 
-        {% for split in ['train', 'val', 'test'] %}
-        <div class="split-header">
-            <h2 class="h3 mb-3">{{ split|title }} Split</h2>
-            <div class="stats">
-                <span class="badge bg-primary me-2">Total: {{ dataset_info[split].total_images }}</span>
-                <span class="badge bg-success me-2">Processed: {{ dataset_info[split].processed_images }}</span>
-                <span class="badge bg-info">Visualizations: {{ dataset_info[split].visualizations }}</span>
+        <!-- Stats Overview -->
+        <div class="stats-grid">
+            <div class="stats-card">
+                <h5>Total Images</h5>
+                <h2 id="total-images">{{ dataset_info.train.total_images + dataset_info.val.total_images + dataset_info.test.total_images }}</h2>
+            </div>
+            <div class="stats-card">
+                <h5>Processed</h5>
+                <h2 id="total-processed">{{ dataset_info.train.processed_images + dataset_info.val.processed_images + dataset_info.test.processed_images }}</h2>
+            </div>
+            <div class="stats-card">
+                <h5>Visualizations</h5>
+                <h2 id="total-viz">{{ dataset_info.train.visualizations + dataset_info.val.visualizations + dataset_info.test.visualizations }}</h2>
             </div>
         </div>
-        
-        <div class="gallery-container">
-            {% for image in dataset_info[split].images %}
-            <div class="image-pair">
-                <div class="row">
-                    <div class="col-12">
-                        <!-- Original Image -->
-                        <a href="{{ url_for('static', filename='images/' + split + '/' + image.name) }}" 
-                           data-lightbox="gallery-{{ split }}"
-                           data-title="Original: {{ image.name }}">
-                            <div class="image-container">
-                                <img src="{{ url_for('static', filename='images/' + split + '/' + image.name) }}" 
-                                     alt="Original image"
-                                     loading="lazy">
-                                <span class="status-badge">Original</span>
-                            </div>
-                        </a>
-                        <div class="image-label">{{ image.name }}</div>
-                    </div>
-                    
-                    {% if image.has_visualization %}
-                    <div class="col-12 mt-3">
-                        <!-- Visualization Image -->
-                        <a href="{{ url_for('static', filename='images/viz/' + split + '/viz_' + image.name) }}"
-                           data-lightbox="gallery-{{ split }}"
-                           data-title="Fire Detection: {{ image.name }}">
-                            <div class="image-container">
-                                <img src="{{ url_for('static', filename='images/viz/' + split + '/viz_' + image.name) }}"
-                                     alt="Annotated image"
-                                     class="visualization"
-                                     loading="lazy">
-                                <span class="status-badge bg-danger">Fire Detected</span>
-                            </div>
-                        </a>
-                    </div>
-                    {% endif %}
-                </div>
+
+        <!-- Split Sections -->
+        {% for split in ['train', 'val', 'test'] %}
+        <div class="dashboard-card" id="{{ split }}">
+            <div class="section-header">
+                <h3>{{ split|title }} Split</h3>
             </div>
-            {% endfor %}
+            
+            <div class="gallery-container">
+                {% for image in dataset_info[split].images %}
+                <div class="image-pair">
+                    <div class="row">
+                        <div class="col-12">
+                            <a href="{{ url_for('serve_image', split=split, filename=image.name) }}" 
+                               data-lightbox="gallery-{{ split }}"
+                               data-title="Original: {{ image.name }}">
+                                <div class="image-container">
+                                    <img src="{{ url_for('serve_image', split=split, filename=image.name) }}" 
+                                         alt="Original image"
+                                         loading="lazy">
+                                    <span class="status-badge original">Original</span>
+                                </div>
+                            </a>
+                            <div class="text-muted text-center mt-2">{{ image.name }}</div>
+                        </div>
+                        
+                        {% if image.has_visualization %}
+                        <div class="col-12 mt-3">
+                            <a href="{{ url_for('get_visualization', split=split, filename=image.name) }}"
+                               data-lightbox="gallery-{{ split }}"
+                               data-title="Detection: {{ image.name }}">
+                                <div class="image-container">
+                                    <img src="{{ url_for('get_visualization', split=split, filename=image.name) }}"
+                                         class="visualization"
+                                         alt="Annotated image"
+                                         loading="lazy">
+                                    <span class="status-badge detection">Object Detected</span>
+                                </div>
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
         </div>
         {% endfor %}
     </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/js/lightbox.min.js"></script>
-    <script src="https://kit.fontawesome.com/your-code.js"></script>
-    <script>
-        lightbox.option({
-            'resizeDuration': 200,
-            'wrapAround': true,
-            'albumLabel': 'Image %1 of %2'
-        });
-
-        function refreshGallery() {
-            const timestamp = new Date().getTime();
-            $('.visualization').each(function() {
-                let src = $(this).attr('src').split('?')[0];
-                $(this).attr('src', src + '?t=' + timestamp);
-                $(this).parent('a').attr('href', src + '?t=' + timestamp);
-            });
-        }
-
-        $('#processBtn').click(function() {
-            $(this).prop('disabled', true);
-            $('#progress').show();
-            
-            $.post('/process', function(data) {
-                if (data.status === 'success') {
-                    setTimeout(() => {
-                        refreshGallery();
-                        location.reload();
-                    }, 1000);
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            })
-            .fail(function() {
-                alert('Processing failed!');
-            })
-            .always(function() {
-                $('#processBtn').prop('disabled', false);
-                $('#progress').hide();
-            });
-        });
-
-        // Refresh gallery every 5 seconds during processing
-        setInterval(refreshGallery, 5000);
-    </script>
+    <script src="{{ url_for('static', filename='js/annotator.js') }}"></script>
 </body>
 </html> 

@@ -1,18 +1,28 @@
-from flask import Flask, render_template, jsonify, request, send_file
+from flask import Flask, render_template, jsonify, request, send_file, Response, stream_with_context
 from pathlib import Path
 import logging
 import os
 from datetime import datetime
 import sys
 import shutil
+import json
+import time
 
 # Add project root to Python path
 ROOT_DIR = Path(__file__).parent
 sys.path.append(str(ROOT_DIR))
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(message)s',  # Simplified format
+    datefmt='%H:%M:%S'
+)
 logger = logging.getLogger(__name__)
+
+# Suppress verbose logging from libraries
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
+logging.getLogger('PIL').setLevel(logging.WARNING)
 
 # Initialize labeler at module level
 def create_labeler():
@@ -25,6 +35,14 @@ app = Flask(__name__)
 
 # Initialize labeler and get cleanup function
 labeler, cleanup_directories = create_labeler()
+
+# Add global variable to track processing status
+processing_status = {
+    'is_processing': False,
+    'current_image': '',
+    'processed': 0,
+    'total': 0
+}
 
 def init_static():
     """Initialize static directory with images"""
@@ -75,12 +93,47 @@ def index():
     dataset_info = get_dataset_info()
     return render_template('index.html', dataset_info=dataset_info)
 
+def generate_events():
+    """Generate SSE events"""
+    while True:
+        # Get current status
+        data = {
+            'is_processing': processing_status['is_processing'],
+            'current_image': processing_status['current_image'],
+            'processed': processing_status['processed'],
+            'total': processing_status['total']
+        }
+        
+        # Send event
+        yield f"data: {json.dumps(data)}\n\n"
+        time.sleep(1)  # Update every second
+
+@app.route('/stream')
+def stream():
+    """SSE endpoint"""
+    return Response(
+        stream_with_context(generate_events()),
+        mimetype='text/event-stream'
+    )
+
 @app.route('/process', methods=['POST'])
 def process_images():
     """Process all images in dataset"""
     try:
-        # Clean up previous results
-        cleanup_directories(labeler.dataset_root)
+        global processing_status
+        processing_status['is_processing'] = True
+        
+        # Calculate total images
+        total_images = 0
+        for split in ['train', 'val', 'test']:
+            split_dir = labeler.images_dir / split
+            for ext in ['*.jpg', '*.jpeg', '*.png']:
+                total_images += len(list(split_dir.glob(ext)))
+        
+        processing_status['total'] = total_images
+        processing_status['processed'] = 0
+        
+        logger.info(f"🚀 Starting to process {total_images} images")
         
         # Process each split
         results = {}
@@ -96,30 +149,74 @@ def process_images():
                 'success': 0
             }
             
-            # Process images in batches
-            batch_size = 5  # Process 5 images at a time
-            for i in range(0, len(image_files), batch_size):
-                batch = image_files[i:i + batch_size]
+            # Process each image
+            for img_path in image_files:
+                processing_status['current_image'] = img_path.name
+                processing_status['processed'] += 1
                 
-                # Process batch
-                for img_path in batch:
-                    results[split]['processed'] += 1
-                    if labeler.process_image(img_path):
-                        results[split]['success'] += 1
+                progress = (processing_status['processed'] / total_images) * 100
+                logger.info(f"📸 [{progress:.1f}%] Processing {img_path.name} ({processing_status['processed']}/{total_images})")
                 
-                # Copy files to static after each batch
-                logger.info("Copying files to static directory...")
+                if labeler.process_image(img_path):
+                    results[split]['success'] += 1
+                    logger.info(f"✅ Fire detected in {img_path.name}")
+                else:
+                    logger.info(f"❌ No fire in {img_path.name}")
+                
+                results[split]['processed'] += 1
+                
+                # Copy to static and update frontend
                 init_static()
-                    
+                logger.info(f"🔄 Updated frontend with {img_path.name}")
+                
+        logger.info(f"✨ Completed processing {total_images} images")
+        processing_status['is_processing'] = False
+        
         return jsonify({
             'status': 'success',
-            'results': results
+            'results': results,
+            'progress': 100,
+            'message': f"Processed {total_images} images"
         })
         
     except Exception as e:
-        logger.error(f"Processing failed: {e}")
+        processing_status['is_processing'] = False
+        logger.error(f"❌ Processing failed: {e}")
         return jsonify({
             'status': 'error',
+            'error': str(e)
+        })
+
+@app.route('/progress')
+def get_progress():
+    """Get current processing progress"""
+    try:
+        total_images = 0
+        processed_images = 0
+        
+        for split in ['train', 'val', 'test']:
+            labels_dir = labeler.labels_dir / split
+            viz_dir = labeler.viz_dir / split
+            
+            # Count total images
+            split_dir = labeler.images_dir / split
+            for ext in ['*.jpg', '*.jpeg', '*.png']:
+                total_images += len(list(split_dir.glob(ext)))
+            
+            # Count processed images
+            if labels_dir.exists():
+                processed_images += len(list(labels_dir.glob('*.txt')))
+        
+        progress = (processed_images / total_images * 100) if total_images > 0 else 0
+        
+        return jsonify({
+            'total': total_images,
+            'processed': processed_images,
+            'progress': progress
+        })
+    except Exception as e:
+        logger.error(f"Error getting progress: {e}")
+        return jsonify({
             'error': str(e)
         })
 
