@@ -20,3 +20,11 @@ backoff
 
 #LLM
 together
+
+flask
+werkzeug
+jinja2
+flask-cors
+
+# Add to existing requirements
+flask-assets
