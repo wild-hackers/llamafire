@@ -1,0 +1,13 @@
+{
+    "timestamp": "20241110_214740",
+    "image_path": "data/detected_fires/fire_20241110_214740.jpg",
+    "analysis": "The image shows a man in a room with a lamp, but there is no visible fire. The lamp is turned on and casting a warm glow on the wall behind the man, but it does not appear to be emitting any flames or smoke.\n\nBased on this analysis, the response would be:\n\n{\n    \"fire_detected\": false,\n    \"analysis\": {\n        \"severity\": \"none\",\n        \"spread_direction\": null,\n        \"risks\": null,\n        \"recommended_actions\": null,\n        \"emergency_services_required\": false\n    },\n    \"confidence\": 1.0\n}",
+    "telemetry": {
+        "altitude": 0.0,
+        "gps": {
+            "lat": 37.7749,
+            "lon": -122.4194
+        },
+        "battery": 100
+    }
+}

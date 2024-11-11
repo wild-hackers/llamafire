@@ -1,0 +1,13 @@
+{
+    "timestamp": "20241110_214824",
+    "image_path": "data/detected_fires/fire_20241110_214824.jpg",
+    "analysis": "To determine if there is a fire present in the image, we need to analyze the visual evidence and context clues. \n\n* The image shows a man sitting in front of a wall with a lamp and a picture frame. \n* There are no visible flames or smoke in the image. \n* The lighting in the room appears to be warm and cozy, but it is not unusual for indoor lighting to be warm-toned. \n\nBased on these observations, it is unlikely that there is a fire present in the image. Therefore, the response would be:\n\n{\n    \"fire_detected\": false,\n    \"analysis\": {\n        \"severity\": \"none\",\n        \"spread_direction\": null,\n        \"risks\": null,\n        \"recommended_actions\": null,\n        \"emergency_services_required\": false\n    },\n    \"confidence\": 1.0\n}",
+    "telemetry": {
+        "altitude": 0.0,
+        "gps": {
+            "lat": 37.7749,
+            "lon": -122.4194
+        },
+        "battery": 100
+    }
+}

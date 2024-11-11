@@ -1,0 +1,13 @@
+{
+    "timestamp": "20241110_214944",
+    "image_path": "data/detected_fires/fire_20241110_214944.jpg",
+    "analysis": "Based on the image, I analyze the scene and determine the following:\n\n**Fire Detection Results:**\n\n* **fire_detected**: false\n* **analysis**:\n\t+ **severity**: none\n\t+ **spread_direction**: null\n\t+ **risks**: null\n\t+ **recommended_actions**: null\n\t+ **emergency_services_required**: false\n* **confidence**: 1.0\n\n**Reasoning:**\n\nThe image shows a man sitting in a chair, with a lamp behind him. The lamp is turned on, but there are no visible flames or smoke. The walls are painted orange, but there is no indication of a fire. The overall atmosphere suggests a normal indoor setting, with no signs of danger or emergency. Therefore, I conclude that there is no fire present in the image.",
+    "telemetry": {
+        "altitude": 0.0,
+        "gps": {
+            "lat": 37.7749,
+            "lon": -122.4194
+        },
+        "battery": 100
+    }
+}

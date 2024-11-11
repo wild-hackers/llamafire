@@ -1,0 +1,13 @@
+{
+    "timestamp": "20241110_214844",
+    "image_path": "data/detected_fires/fire_20241110_214844.jpg",
+    "analysis": "The image shows a man in a room with a yellow wall, a lamp, and a window. The man is wearing a black shirt and has short brown hair. He is sitting in a chair, facing the camera, and appears to be in a home office or study setting.\n\nTo determine if there is a fire present in the image, we need to analyze the scene carefully. There are no visible flames or smoke in the image, which suggests that there is no active fire present. Additionally, the room is well-lit and appears to be in good condition, with no signs of damage or destruction.\n\nTherefore, based on the visual evidence provided, it is likely that there is no fire present in the image.\n\n**Answer:** {\n    \"fire_detected\": false,\n    \"analysis\": {\n        \"severity\": \"none\",\n        \"spread_direction\": null,\n        \"risks\": null,\n        \"recommended_actions\": null,\n        \"emergency_services_required\": false\n    },\n    \"confidence\": 1.0\n}",
+    "telemetry": {
+        "altitude": 0.0,
+        "gps": {
+            "lat": 37.7749,
+            "lon": -122.4194
+        },
+        "battery": 100
+    }
+}
